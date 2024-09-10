@@ -1,12 +1,13 @@
 import asyncio
+import csv
 import time
-from urllib.parse import urljoin
 
 import aiohttp
+from urllib.parse import urljoin
+
 from selenium import webdriver
 from selenium.common import ElementNotInteractableException
 from selenium.webdriver.common.by import By
-
 
 BASE_URL = "https://jobs.dou.ua/"
 VACANCY_URL = urljoin(BASE_URL, "vacancies/?category=Python")
@@ -75,6 +76,13 @@ def add_technology_mentions(technologies_mentions, new_technology_mentions):
     return technologies_mentions
 
 
+def write_to_csv(technologies_mentions):
+    with open("technologies.csv", "w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(["Technology", "Count"])
+        writer.writerows([[key, value] for key, value in technologies_mentions.items()])
+
+
 async def count_technology_mentions():
     technology_mentions = {}
     with webdriver.Chrome() as driver:
@@ -97,6 +105,8 @@ async def count_technology_mentions():
                     new_technology_mentions
                 )
 
+    write_to_csv(technology_mentions)
+
 
 if __name__ == "__main__":
-    count_technology_mentions()
+    asyncio.run(count_technology_mentions())
