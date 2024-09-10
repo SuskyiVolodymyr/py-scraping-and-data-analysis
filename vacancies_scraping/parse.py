@@ -11,6 +11,13 @@ from selenium.webdriver.common.by import By
 BASE_URL = "https://jobs.dou.ua/"
 VACANCY_URL = urljoin(BASE_URL, "vacancies/?category=Python")
 
+KEY_WORDS = [
+    "Python", "Django", "Flask", "FastAPI", "SQL", "NoSQL", "PostgreSQL", "MySQL",
+    "Redis", "Docker", "AWS", "Azure", "API", "Linux", "Artificial Intelligence", "Machine Learning", "OOP",
+    "Networking", "Fullstack", "microservices", "algorithms", "asyncio",
+    "Git", "REST", "GraphQL", "JavaScript", "JS", "React", "Angular", "HTML", "CSS"
+]
+
 
 def load_all_vacancies(driver):
     while True:
@@ -38,6 +45,36 @@ async def fetch_vacancy_detail_text(session, vacancy_url):
         return html
 
 
+def get_technology_mentions(text):
+    technologies_mentions = {}
+
+    for word in text.split():
+        if (
+            word in KEY_WORDS
+            or word.lower() in KEY_WORDS
+            or word.upper() in KEY_WORDS
+            or word.capitalize() in KEY_WORDS
+        ):
+            word = word.capitalize()
+
+            if word in technologies_mentions:
+                technologies_mentions[word] += 1
+            else:
+                technologies_mentions[word] = 1
+
+    return technologies_mentions
+
+
+def add_technology_mentions(technologies_mentions, new_technology_mentions):
+    for key, value in new_technology_mentions.items():
+        if key in technologies_mentions:
+            technologies_mentions[key] += value
+        else:
+            technologies_mentions[key] = value
+
+    return technologies_mentions
+
+
 async def count_technology_mentions():
     technology_mentions = {}
     with webdriver.Chrome() as driver:
@@ -52,6 +89,13 @@ async def count_technology_mentions():
                 fetch_vacancy_detail_text(session, url) for url in vacancies_urls
             ]
             vacancy_texts = await asyncio.gather(*tasks)
+
+            for vacancy_detail_text in vacancy_texts:
+                new_technology_mentions = get_technology_mentions(vacancy_detail_text)
+                technology_mentions = add_technology_mentions(
+                    technology_mentions,
+                    new_technology_mentions
+                )
 
 
 if __name__ == "__main__":
