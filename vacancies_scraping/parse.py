@@ -1,23 +1,51 @@
 import asyncio
 import csv
 import time
-from dataclasses import dataclass, astuple
+from dataclasses import dataclass
 
 import aiohttp
 from urllib.parse import urljoin
 
 from selenium import webdriver
 from selenium.common import ElementNotInteractableException
+from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
 
 BASE_URL = "https://jobs.dou.ua/"
 VACANCY_URL = urljoin(BASE_URL, "vacancies/?category=Python")
 KEY_WORDS = [
-    "Python", "Django", "Flask", "FastAPI", "SQL", "NoSQL", "PostgreSQL", "MySQL",
-    "Redis", "Docker", "AWS", "Azure", "API", "Linux", "Artificial Intelligence", "Machine Learning", "OOP",
-    "Networking", "Fullstack", "microservices", "algorithms", "asyncio",
-    "Git", "REST", "GraphQL", "JavaScript", "JS", "React", "Angular", "HTML", "CSS"
+    "Python",
+    "Django",
+    "Flask",
+    "FastAPI",
+    "SQL",
+    "NoSQL",
+    "PostgreSQL",
+    "MySQL",
+    "Redis",
+    "Docker",
+    "AWS",
+    "Azure",
+    "API",
+    "Linux",
+    "Artificial Intelligence",
+    "Machine Learning",
+    "OOP",
+    "Networking",
+    "Fullstack",
+    "microservices",
+    "algorithms",
+    "asyncio",
+    "Git",
+    "REST",
+    "GraphQL",
+    "JavaScript",
+    "JS",
+    "React",
+    "Angular",
+    "HTML",
+    "CSS",
 ]
 
 
@@ -29,7 +57,7 @@ class Vacancy:
     technologies: list = None
 
 
-def load_all_vacancies(driver):
+def load_all_vacancies(driver: WebDriver) -> None:
     while True:
         try:
             button = driver.find_element(By.CSS_SELECTOR, ".more-btn a")
@@ -40,7 +68,7 @@ def load_all_vacancies(driver):
         time.sleep(1)
 
 
-def get_all_vacancies(driver):
+def get_all_vacancies(driver: WebDriver) -> list:
     vacancies = driver.find_elements(By.CSS_SELECTOR, "li.l-vacancy")
     urls = [
         vacancy.find_element(By.CSS_SELECTOR, "a.vt").get_attribute("href")
@@ -49,13 +77,15 @@ def get_all_vacancies(driver):
     return urls
 
 
-async def fetch_vacancy_detail_soup(session, vacancy_url):
+async def fetch_vacancy_detail_soup(
+    session: aiohttp.ClientSession, vacancy_url: str
+) -> BeautifulSoup:
     async with session.get(vacancy_url, params={"switch_lang": "en"}) as response:
         html = await response.text()
         return BeautifulSoup(html, "html.parser")
 
 
-def get_technology_mentions(text):
+def get_technology_mentions(text: str) -> list:
     technologies_mentions = set()
 
     for word in text.split():
@@ -72,25 +102,28 @@ def get_technology_mentions(text):
     return list(technologies_mentions)
 
 
-def write_to_csv(vacancies):
+def write_to_csv(vacancies: list) -> None:
     with open("../data/technologies.csv", "w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
         writer.writerow(["Title", "City", "Salary", "Technologies"])
-        writer.writerows([
-            (vacancy.title,
-             vacancy.city,
-             vacancy.salary,
-             ", ".join(vacancy.technologies))
-            for vacancy
-            in vacancies
-        ])
+        writer.writerows(
+            [
+                (
+                    vacancy.title,
+                    vacancy.city,
+                    vacancy.salary,
+                    ", ".join(vacancy.technologies),
+                )
+                for vacancy in vacancies
+            ]
+        )
 
 
-def get_vacancy(soup: BeautifulSoup):
+def get_vacancy(soup: BeautifulSoup) -> Vacancy:
     salary = soup.select_one("span.salary")
     if salary:
         salary = salary.text
-        salary = salary[salary.index("$"):]
+        salary = salary[salary.index("$") :]
         print(salary)
     city = soup.select_one("span.place")
     if city:
@@ -103,7 +136,7 @@ def get_vacancy(soup: BeautifulSoup):
     )
 
 
-async def count_technology_mentions():
+async def count_technology_mentions() -> None:
     vacancies = []
     with webdriver.Chrome() as driver:
         driver.get(VACANCY_URL)
@@ -113,9 +146,7 @@ async def count_technology_mentions():
         vacancies_urls = get_all_vacancies(driver)
 
         async with aiohttp.ClientSession() as session:
-            tasks = [
-                fetch_vacancy_detail_soup(session, url) for url in vacancies_urls
-            ]
+            tasks = [fetch_vacancy_detail_soup(session, url) for url in vacancies_urls]
             vacancy_soups = await asyncio.gather(*tasks)
 
             for i, vacancy_detail_soup in enumerate(vacancy_soups):
