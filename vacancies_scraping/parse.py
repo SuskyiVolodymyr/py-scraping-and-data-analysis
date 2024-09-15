@@ -1,6 +1,7 @@
 import asyncio
 import csv
 import time
+from dataclasses import dataclass, astuple
 
 import aiohttp
 from urllib.parse import urljoin
@@ -8,16 +9,24 @@ from urllib.parse import urljoin
 from selenium import webdriver
 from selenium.common import ElementNotInteractableException
 from selenium.webdriver.common.by import By
+from bs4 import BeautifulSoup
 
 BASE_URL = "https://jobs.dou.ua/"
 VACANCY_URL = urljoin(BASE_URL, "vacancies/?category=Python")
-
 KEY_WORDS = [
     "Python", "Django", "Flask", "FastAPI", "SQL", "NoSQL", "PostgreSQL", "MySQL",
     "Redis", "Docker", "AWS", "Azure", "API", "Linux", "Artificial Intelligence", "Machine Learning", "OOP",
     "Networking", "Fullstack", "microservices", "algorithms", "asyncio",
     "Git", "REST", "GraphQL", "JavaScript", "JS", "React", "Angular", "HTML", "CSS"
 ]
+
+
+@dataclass
+class Vacancy:
+    title: str
+    city: str
+    salary: str = None
+    technologies: list = None
 
 
 def load_all_vacancies(driver):
@@ -40,14 +49,14 @@ def get_all_vacancies(driver):
     return urls
 
 
-async def fetch_vacancy_detail_text(session, vacancy_url):
-    async with session.get(vacancy_url) as response:
+async def fetch_vacancy_detail_soup(session, vacancy_url):
+    async with session.get(vacancy_url, params={"switch_lang": "en"}) as response:
         html = await response.text()
-        return html
+        return BeautifulSoup(html, "html.parser")
 
 
 def get_technology_mentions(text):
-    technologies_mentions = {}
+    technologies_mentions = set()
 
     for word in text.split():
         if (
@@ -58,33 +67,37 @@ def get_technology_mentions(text):
         ):
             word = word.capitalize()
 
-            if word in technologies_mentions:
-                technologies_mentions[word] += 1
-            else:
-                technologies_mentions[word] = 1
+            technologies_mentions.add(word)
 
-    return technologies_mentions
+    return list(technologies_mentions)
 
 
-def add_technology_mentions(technologies_mentions, new_technology_mentions):
-    for key, value in new_technology_mentions.items():
-        if key in technologies_mentions:
-            technologies_mentions[key] += value
-        else:
-            technologies_mentions[key] = value
-
-    return technologies_mentions
-
-
-def write_to_csv(technologies_mentions):
-    with open("technologies.csv", "w", newline="") as file:
+def write_to_csv(vacancies):
+    with open("technologies.csv", "w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
-        writer.writerow(["Technology", "Count"])
-        writer.writerows([[key, value] for key, value in technologies_mentions.items()])
+        writer.writerow(["Title", "City", "Salary", "Technologies"])
+        writer.writerows([astuple(vacancy) for vacancy in vacancies])
+
+
+def get_vacancy(soup: BeautifulSoup):
+    salary = soup.select_one("span.salary")
+    if salary:
+        salary = salary.text
+        salary = salary[salary.index("$"):]
+        print(salary)
+    city = soup.select_one("span.place")
+    if city:
+        city = city.text
+    return Vacancy(
+        title=soup.select_one("h1.g-h2").text,
+        city=city,
+        salary=salary,
+        technologies=get_technology_mentions(soup.select_one(".b-vacancy").text),
+    )
 
 
 async def count_technology_mentions():
-    technology_mentions = {}
+    vacancies = []
     with webdriver.Chrome() as driver:
         driver.get(VACANCY_URL)
         time.sleep(2)
@@ -94,18 +107,14 @@ async def count_technology_mentions():
 
         async with aiohttp.ClientSession() as session:
             tasks = [
-                fetch_vacancy_detail_text(session, url) for url in vacancies_urls
+                fetch_vacancy_detail_soup(session, url) for url in vacancies_urls
             ]
-            vacancy_texts = await asyncio.gather(*tasks)
+            vacancy_soups = await asyncio.gather(*tasks)
 
-            for vacancy_detail_text in vacancy_texts:
-                new_technology_mentions = get_technology_mentions(vacancy_detail_text)
-                technology_mentions = add_technology_mentions(
-                    technology_mentions,
-                    new_technology_mentions
-                )
+            for i, vacancy_detail_soup in enumerate(vacancy_soups):
+                vacancies.append(get_vacancy(vacancy_detail_soup))
 
-    write_to_csv(technology_mentions)
+    write_to_csv(vacancies)
 
 
 if __name__ == "__main__":
