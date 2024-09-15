@@ -73,10 +73,17 @@ def get_technology_mentions(text):
 
 
 def write_to_csv(vacancies):
-    with open("technologies.csv", "w", newline="", encoding="utf-8") as file:
+    with open("../data/technologies.csv", "w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
         writer.writerow(["Title", "City", "Salary", "Technologies"])
-        writer.writerows([astuple(vacancy) for vacancy in vacancies])
+        writer.writerows([
+            (vacancy.title,
+             vacancy.city,
+             vacancy.salary,
+             ", ".join(vacancy.technologies))
+            for vacancy
+            in vacancies
+        ])
 
 
 def get_vacancy(soup: BeautifulSoup):
