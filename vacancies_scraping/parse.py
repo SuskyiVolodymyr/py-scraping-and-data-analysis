@@ -63,7 +63,6 @@ def load_all_vacancies(driver: WebDriver) -> None:
             button = driver.find_element(By.CSS_SELECTOR, ".more-btn a")
             button.click()
         except ElementNotInteractableException:
-            print("all vacancies loaded")
             break
         time.sleep(1)
 
@@ -123,8 +122,7 @@ def get_vacancy(soup: BeautifulSoup) -> Vacancy:
     salary = soup.select_one("span.salary")
     if salary:
         salary = salary.text
-        salary = salary[salary.index("$") :]
-        print(salary)
+        salary = salary[salary.index("$"):]
     city = soup.select_one("span.place")
     if city:
         city = city.text
